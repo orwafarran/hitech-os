@@ -1,0 +1,16 @@
+{
+  "name": "ht-os",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HT-OS — HiTech Operating System · executive command-centre demo for Hi-Tech Concrete Products",
+  "scripts": {
+    "build": "babel src --out-dir dist/js --presets @babel/preset-react --extensions .jsx,.js && node ./tools/postbuild.mjs",
+    "serve": "npx --yes serve -s dist -l 5050",
+    "deploy": "surge ./dist"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.25.0",
+    "@babel/core": "^7.25.0",
+    "@babel/preset-react": "^7.24.0"
+  }
+}
