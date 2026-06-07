@@ -1942,6 +1942,300 @@ window.HTOS = function () {
       kind: 'primary'
     }
   }];
+
+  // ============================================================
+  //  TRUCK TRIP VERIFICATION  (screen 3)  — camera-counted trips,
+  //  3-way handshake, hash chain, QR-verified invoice. (from proposal)
+  // ============================================================
+  const tvStats = {
+    registered: 18,
+    verifiedToday: 47,
+    claimed: 50,
+    rejected: 3,
+    unclaimed: 2,
+    suspended: 1,
+    disputes: 0,
+    camsOnline: 8,
+    camsTotal: 8
+  };
+  // trucks we know about (plate registry)
+  const verifyTrucks = [{
+    plate: 'AD-77888',
+    supplier: 'Trella',
+    trips: 4,
+    status: 'active'
+  }, {
+    plate: 'AD-48217',
+    supplier: 'Al Faris',
+    trips: 3,
+    status: 'active'
+  }, {
+    plate: 'AD-51422',
+    supplier: 'Trella',
+    trips: 4,
+    status: 'active'
+  }, {
+    plate: 'AD-44120',
+    supplier: 'Trella',
+    trips: 3,
+    status: 'active'
+  }, {
+    plate: 'AD-49003',
+    supplier: 'Al Faris',
+    trips: 2,
+    status: 'unclaimed',
+    note: 'camera saw · no note'
+  }, {
+    plate: 'AD-55190',
+    supplier: 'Trella',
+    trips: 3,
+    status: 'suspended',
+    note: 'timestamp mismatch'
+  }, {
+    plate: 'AD-60771',
+    supplier: 'Al Faris',
+    trips: 2,
+    status: 'idle'
+  }, {
+    plate: 'AD-30219',
+    supplier: '— unknown',
+    trips: 0,
+    status: 'unregistered',
+    note: 'at ICAD II gate now'
+  }];
+  // featured complete trip — the 4-event lifecycle (what's IN / what's OUT)
+  const verifyFeatured = {
+    trip: 'TRIP-1042',
+    plate: 'AD-77888',
+    supplier: 'Trella',
+    route: 'ICAD II → Yas Acres',
+    handshake: {
+      camera: true,
+      note: true,
+      times: true
+    },
+    events: [{
+      gate: 'Factory IN',
+      lane: 'IN',
+      cam: 'CAM·01',
+      load: 'EMPTY',
+      t: '07:12',
+      hash: 'a3f8b2c9'
+    }, {
+      gate: 'Factory OUT',
+      lane: 'OUT',
+      cam: 'CAM·03',
+      load: 'LOADED',
+      t: '07:41',
+      hash: '7c4e1d05'
+    }, {
+      gate: 'Site IN',
+      lane: 'IN',
+      cam: 'CAM·05',
+      load: 'LOADED',
+      t: '09:05',
+      hash: '2bd0a7f3'
+    }, {
+      gate: 'Site OUT',
+      lane: 'OUT',
+      cam: 'CAM·07',
+      load: 'EMPTY',
+      t: '09:38',
+      hash: 'e5a79c21'
+    }]
+  };
+  // trip ledger — each trip's 3-way handshake result
+  const verifyTrips = [{
+    id: 'TRIP-1042',
+    plate: 'AD-77888',
+    from: 'ICAD II',
+    to: 'Yas Acres',
+    cam: true,
+    note: true,
+    times: true,
+    status: 'verified',
+    t: '09:38'
+  }, {
+    id: 'TRIP-1041',
+    plate: 'AD-48217',
+    from: 'ICAD II',
+    to: 'Baniyas',
+    cam: true,
+    note: true,
+    times: true,
+    status: 'verified',
+    t: '09:22'
+  }, {
+    id: 'TRIP-1040',
+    plate: 'AD-51422',
+    from: 'KEZAD',
+    to: 'Al Falah',
+    cam: true,
+    note: true,
+    times: true,
+    status: 'verified',
+    t: '08:55'
+  }, {
+    id: 'TRIP-1039',
+    plate: 'AD-55190',
+    from: 'Al Ain',
+    to: 'Yas Acres',
+    cam: true,
+    note: true,
+    times: false,
+    status: 'suspended',
+    t: '08:40'
+  }, {
+    id: 'TRIP-1038',
+    plate: 'AD-99001',
+    from: '—',
+    to: 'Baniyas',
+    cam: false,
+    note: true,
+    times: false,
+    status: 'rejected',
+    t: '08:12'
+  }, {
+    id: 'TRIP-1037',
+    plate: 'AD-49003',
+    from: 'ICAD II',
+    to: 'Baniyas',
+    cam: true,
+    note: false,
+    times: false,
+    status: 'unclaimed',
+    t: '07:58'
+  }, {
+    id: 'TRIP-1036',
+    plate: 'AD-44120',
+    from: 'KEZAD',
+    to: 'Al Falah',
+    cam: true,
+    note: true,
+    times: true,
+    status: 'verified',
+    t: '07:30'
+  }];
+  // immutable hash chain (append-only; each links to the previous)
+  const verifyChain = [{
+    t: '09:38:04',
+    ev: 'SITE_OUT',
+    plate: 'AD-77888',
+    load: 'EMPTY',
+    hash: 'e5a79c21…b91c',
+    prev: '2bd0a7f3'
+  }, {
+    t: '09:05:22',
+    ev: 'SITE_IN',
+    plate: 'AD-77888',
+    load: 'LOADED',
+    hash: '2bd0a7f3…1aa9',
+    prev: '7c4e1d05'
+  }, {
+    t: '08:55:10',
+    ev: 'TRIP_VERIFIED',
+    plate: 'AD-51422',
+    load: '—',
+    hash: '9f12bb04…c2f4',
+    prev: '55bc7e1'
+  }, {
+    t: '07:41:10',
+    ev: 'FACTORY_OUT',
+    plate: 'AD-77888',
+    load: 'LOADED',
+    hash: '7c4e1d05…d0a3',
+    prev: 'a3f8b2c9'
+  }, {
+    t: '07:12:00',
+    ev: 'FACTORY_IN',
+    plate: 'AD-77888',
+    load: 'EMPTY',
+    hash: 'a3f8b2c9…aa12',
+    prev: '9e21f70'
+  }, {
+    t: '07:02:19',
+    ev: 'CLAIM_REJECTED',
+    plate: 'AD-99001',
+    load: '—',
+    hash: '0x9a01f73…4e07',
+    prev: '2b9d440'
+  }];
+  const verifyChainStream = [{
+    ev: 'FACTORY_IN',
+    plate: 'AD-60771',
+    load: 'EMPTY',
+    hashSeed: 'b8c1'
+  }, {
+    ev: 'FACTORY_OUT',
+    plate: 'AD-60771',
+    load: 'LOADED',
+    hashSeed: '4d77'
+  }, {
+    ev: 'SITE_IN',
+    plate: 'AD-48217',
+    load: 'LOADED',
+    hashSeed: '1f88'
+  }, {
+    ev: 'TRIP_VERIFIED',
+    plate: 'AD-48217',
+    load: '—',
+    hashSeed: '7b02'
+  }];
+  const verifyIncoming = [{
+    id: 'TV-5',
+    sev: 'warn',
+    cat: 'UNCLAIMED',
+    owner: 'Logistics Control',
+    text: 'Camera recorded a trip for AD-60771 — supplier has not submitted a delivery note.',
+    primary: {
+      label: 'Request note',
+      kind: 'warn'
+    }
+  }];
+  const verifyAlerts = [{
+    id: 'TV-1',
+    sev: 'crit',
+    cat: 'UNREGISTERED',
+    owner: 'Gatehouse / Security',
+    plate: 'AD-30219',
+    text: 'Unregistered truck AD-30219 at ICAD II gate — not in fleet registry. Trip blocked, not billable.',
+    primary: {
+      label: 'Register',
+      kind: 'primary'
+    }
+  }, {
+    id: 'TV-2',
+    sev: 'crit',
+    cat: 'CLAIM REJECTED',
+    owner: 'Logistics Control',
+    trip: 'TRIP-1038',
+    text: 'Supplier claimed TRIP-1038 (AD-99001) — no camera record at either gate. Auto-rejected, not payable.',
+    primary: {
+      label: 'Investigate',
+      kind: 'warn'
+    }
+  }, {
+    id: 'TV-3',
+    sev: 'warn',
+    cat: 'TIMESTAMP',
+    owner: 'Dual reviewers',
+    trip: 'TRIP-1039',
+    text: 'TRIP-1039 (AD-55190) factory→site time off by 42 min — suspended for two-manager review.',
+    primary: {
+      label: 'Dual review',
+      kind: 'primary'
+    }
+  }, {
+    id: 'TV-4',
+    sev: 'warn',
+    cat: 'CAMERA',
+    owner: 'IT / Plant',
+    text: 'Site OUT camera (CAM·07) offline 3 min — any trips in the window flagged "unverifiable".',
+    primary: {
+      label: 'Dispatch',
+      kind: 'warn'
+    }
+  }];
   return {
     factories,
     projects,
@@ -2000,6 +2294,14 @@ window.HTOS = function () {
     apPayables,
     retentionRows,
     financeIncoming,
-    financeAlerts
+    financeAlerts,
+    tvStats,
+    verifyTrucks,
+    verifyFeatured,
+    verifyTrips,
+    verifyChain,
+    verifyChainStream,
+    verifyIncoming,
+    verifyAlerts
   };
 }();

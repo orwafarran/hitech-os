@@ -23,52 +23,46 @@ function shortLabel(a) {
 }
 const NAV = [{
   id: 'tower',
-  n: '01',
   l: 'TOWER'
 }, {
   id: 'project',
-  n: '02',
   l: 'PROJECT'
 }, {
+  id: 'verify',
+  l: 'TRUCKS'
+}, {
   id: 'factory',
-  n: '03',
   l: 'FLOOR'
 }, {
   id: 'graph',
-  n: '04',
   l: 'GRAPH'
 }, {
   id: 'trust',
-  n: '05',
   l: 'TRUST'
 }, {
   id: 'sales',
-  n: '06',
   l: 'SALES'
 }, {
   id: 'store',
-  n: '07',
   l: 'STORE'
 }, {
   id: 'design',
-  n: '08',
   l: 'DESIGN'
 }, {
   id: 'people',
-  n: '09',
   l: 'PEOPLE'
 }, {
   id: 'fleet',
-  n: '10',
   l: 'FLEET'
 }, {
   id: 'finance',
-  n: '11',
   l: 'FINANCE'
 }];
+const navNum = id => String(NAV.findIndex(i => i.id === id) + 1).padStart(2, '0');
 const TITLES = {
   tower: 'Executive Control Tower',
   project: 'Project View',
+  verify: 'Truck Trip Verification',
   factory: 'Production Floor',
   graph: 'Knowledge Graph',
   trust: 'Trust & Verification',
@@ -213,8 +207,10 @@ function App() {
   const peopleCrit = D.peopleAlerts.filter(a => a.sev === 'crit').length;
   const fleetCrit = D.fleetAlerts.filter(a => a.sev === 'crit').length;
   const financeCrit = D.financeAlerts.filter(a => a.sev === 'crit').length;
+  const verifyCrit = D.verifyAlerts.filter(a => a.sev === 'crit').length;
   const navBadge = {
     tower: critOpen,
+    verify: verifyCrit,
     sales: salesCrit,
     store: storeLow,
     design: designCrit,
@@ -239,6 +235,7 @@ function App() {
     project: () => /*#__PURE__*/React.createElement(ScreenProject, _extends({}, common, {
       pid: param
     })),
+    verify: () => /*#__PURE__*/React.createElement(ScreenVerify, common),
     factory: () => /*#__PURE__*/React.createElement(ScreenFactory, common),
     graph: () => /*#__PURE__*/React.createElement(ScreenGraph, common),
     trust: () => /*#__PURE__*/React.createElement(ScreenTrust, common),
@@ -286,7 +283,7 @@ function App() {
       title: 'You are here · ' + TITLES[screen]
     }, /*#__PURE__*/React.createElement("span", {
       className: "loc-n"
-    }, ni.n), /*#__PURE__*/React.createElement("div", {
+    }, navNum(screen)), /*#__PURE__*/React.createElement("div", {
       className: "col",
       style: {
         gap: 0
@@ -319,7 +316,7 @@ function App() {
     className: "nb"
   }, navBadge[item.id]), /*#__PURE__*/React.createElement("span", {
     className: "nav-num"
-  }, item.n), /*#__PURE__*/React.createElement("span", {
+  }, navNum(item.id)), /*#__PURE__*/React.createElement("span", {
     className: "nl"
   }, item.l))), /*#__PURE__*/React.createElement("span", {
     className: "sp"
