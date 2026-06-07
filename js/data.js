@@ -2044,77 +2044,112 @@ window.HTOS = function () {
       hash: 'e5a79c21'
     }]
   };
-  // trip ledger — each trip's 3-way handshake result
+  // trip timesheet — each trip's 4 gate times + 3-way handshake result + hash
   const verifyTrips = [{
     id: 'TRIP-1042',
     plate: 'AD-77888',
+    sup: 'Trella',
     from: 'ICAD II',
     to: 'Yas Acres',
+    fIn: '07:12',
+    fOut: '07:41',
+    sIn: '09:05',
+    sOut: '09:38',
     cam: true,
     note: true,
     times: true,
     status: 'verified',
-    t: '09:38'
+    hash: 'a3f8…e5a7'
   }, {
     id: 'TRIP-1041',
     plate: 'AD-48217',
+    sup: 'Al Faris',
     from: 'ICAD II',
     to: 'Baniyas',
+    fIn: '06:40',
+    fOut: '07:05',
+    sIn: '08:10',
+    sOut: '08:38',
     cam: true,
     note: true,
     times: true,
     status: 'verified',
-    t: '09:22'
+    hash: '7c4e…b91c'
   }, {
     id: 'TRIP-1040',
     plate: 'AD-51422',
+    sup: 'Trella',
     from: 'KEZAD',
     to: 'Al Falah',
+    fIn: '06:02',
+    fOut: '06:30',
+    sIn: '07:18',
+    sOut: '07:46',
     cam: true,
     note: true,
     times: true,
     status: 'verified',
-    t: '08:55'
+    hash: '9f12…c2f4'
+  }, {
+    id: 'TRIP-1036',
+    plate: 'AD-44120',
+    sup: 'Trella',
+    from: 'KEZAD',
+    to: 'Al Falah',
+    fIn: '05:30',
+    fOut: '05:58',
+    sIn: '06:45',
+    sOut: '07:12',
+    cam: true,
+    note: true,
+    times: true,
+    status: 'verified',
+    hash: '4d77…aa12'
   }, {
     id: 'TRIP-1039',
     plate: 'AD-55190',
+    sup: 'Trella',
     from: 'Al Ain',
     to: 'Yas Acres',
+    fIn: '05:50',
+    fOut: '06:15',
+    sIn: '09:40',
+    sOut: '10:05',
     cam: true,
     note: true,
     times: false,
     status: 'suspended',
-    t: '08:40'
-  }, {
-    id: 'TRIP-1038',
-    plate: 'AD-99001',
-    from: '—',
-    to: 'Baniyas',
-    cam: false,
-    note: true,
-    times: false,
-    status: 'rejected',
-    t: '08:12'
+    hash: '2bd0…1aa9'
   }, {
     id: 'TRIP-1037',
     plate: 'AD-49003',
+    sup: 'Al Faris',
     from: 'ICAD II',
     to: 'Baniyas',
+    fIn: '07:20',
+    fOut: '07:48',
+    sIn: '08:55',
+    sOut: '09:20',
     cam: true,
     note: false,
     times: false,
     status: 'unclaimed',
-    t: '07:58'
+    hash: '1f88…d0a3'
   }, {
-    id: 'TRIP-1036',
-    plate: 'AD-44120',
-    from: 'KEZAD',
-    to: 'Al Falah',
-    cam: true,
+    id: 'TRIP-1038',
+    plate: 'AD-99001',
+    sup: '(claimed)',
+    from: '—',
+    to: 'Baniyas',
+    fIn: '—',
+    fOut: '—',
+    sIn: '—',
+    sOut: '—',
+    cam: false,
     note: true,
-    times: true,
-    status: 'verified',
-    t: '07:30'
+    times: false,
+    status: 'rejected',
+    hash: '—'
   }];
   // immutable hash chain (append-only; each links to the previous)
   const verifyChain = [{

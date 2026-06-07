@@ -1,29 +1,26 @@
 /* ============================================================
    HT-OS — Screen 3 · Truck Trip Verification  (window.ScreenVerify)
-   Camera-counted trips · 4-event complete trip · 3-way handshake ·
-   hash chain · QR-verified invoice. (Truck Trip Verification System)
+   A verified trip TIMESHEET: every trip's gate times (in/out),
+   stamped verified by hash chain + QR. Replaces paper + signatures.
    ============================================================ */
-const TRIP_TAG = {
-  verified: ['ok', '✓ Verified'],
-  suspended: ['warn', '⚠ Suspended'],
-  rejected: ['crit', '✗ Rejected'],
-  unclaimed: ['info', '◷ Unclaimed']
+const TV_STATUS = {
+  verified: {
+    s: 'ok',
+    label: '✓ Verified'
+  },
+  suspended: {
+    s: 'warn',
+    label: '⚠ Review'
+  },
+  unclaimed: {
+    s: 'info',
+    label: '◷ No note'
+  },
+  rejected: {
+    s: 'crit',
+    label: '✗ Rejected'
+  }
 };
-function HS({
-  ok,
-  label
-}) {
-  return /*#__PURE__*/React.createElement("span", {
-    className: "tag",
-    style: {
-      height: 18,
-      padding: '0 6px',
-      color: ok ? 'var(--green)' : 'var(--red)',
-      borderColor: ok ? 'rgba(42,209,127,.34)' : 'var(--red-line)',
-      background: ok ? 'var(--green-dim)' : 'var(--red-dim)'
-    }
-  }, ok ? '✓' : '✗', " ", label);
-}
 function ScreenVerify({
   live,
   tick,
@@ -32,57 +29,29 @@ function ScreenVerify({
   pushActivity
 }) {
   const D = window.HTOS;
-  const F = D.verifyFeatured;
   const V = D.tvStats;
-  const tnow = () => new Date().toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
+  const trips = D.verifyTrips;
   const [verified, setVerified] = useState(V.verifiedToday);
   const [claimed, setClaimed] = useState(V.claimed);
   const [trucks, setTrucks] = useState(() => D.verifyTrucks.map(t => ({
-    ...t
-  })));
-  const [trips, setTrips] = useState(() => D.verifyTrips.map(t => ({
     ...t
   })));
   const [alerts, setAlerts] = useState(() => D.verifyAlerts.map(a => ({
     ...a,
     status: 'open'
   })));
-  const ledKey = useRef(0);
-  const [chain, setChain] = useState(() => D.verifyChain.map(c => ({
-    ...c,
-    _k: 'C' + ledKey.current++
-  })));
-  const streamRef = useRef(0);
   const incRef = useRef(0);
   const lastTick = useRef(0);
 
-  // live: trips complete, the hash chain appends, an alert can auto-surface
+  // live: trips keep getting camera-counted; an alert can auto-surface
   useEffect(() => {
     if (!live || tick === lastTick.current) return;
     lastTick.current = tick;
-    if (tick % 3 === 0 && streamRef.current < D.verifyChainStream.length) {
-      const s = D.verifyChainStream[streamRef.current++];
-      setChain(c => [{
-        t: tnow(),
-        ev: s.ev,
-        plate: s.plate,
-        load: s.load,
-        hash: '0x' + s.hashSeed + '…' + s.hashSeed,
-        prev: c[0] ? c[0].hash.slice(2, 9) : '—',
-        _k: 'C' + ledKey.current++,
-        isNew: true
-      }, ...c]);
-      if (s.ev === 'TRIP_VERIFIED') {
-        setVerified(n => n + 1);
-        setClaimed(n => n + 1);
-        pushActivity(`Trip verified by camera — <b>${s.plate}</b>`);
-      }
+    if (tick % 4 === 0) {
+      setVerified(n => n + 1);
+      setClaimed(n => n + 1);
     }
-    if (tick % 8 === 0 && incRef.current < D.verifyIncoming.length) {
+    if (tick % 9 === 0 && incRef.current < D.verifyIncoming.length) {
       const a = D.verifyIncoming[incRef.current++];
       setAlerts(list => [{
         ...a,
@@ -93,8 +62,7 @@ function ScreenVerify({
       pushActivity('Unclaimed trip flagged — camera saw, no note');
     }
   }, [tick, live]);
-
-  /* actions — agree / dispute only (no edit; camera is the judge) */
+  const gap = claimed - verified;
   const registerTruck = p => {
     setTrucks(ts => ts.map(t => t.plate === p ? {
       ...t,
@@ -104,16 +72,9 @@ function ScreenVerify({
     toast('Truck registered', `${p} added to fleet registry`, 'good');
     pushActivity(`Registered truck <b>${p}</b>`);
   };
-  const tripAct = t => {
-    const map = {
-      suspended: ['Dual review queued', 'two-manager review', 'warn'],
-      rejected: ['Investigation opened', 'claim vs camera', 'warn'],
-      unclaimed: ['Note requested', 'supplier notified', 'accent'],
-      verified: ['Evidence opened', 'photos + clips', 'good']
-    };
-    const [m, s, k] = map[t.status] || ['Opened', '', 'accent'];
-    toast(m, `${t.id} · ${s}`, k);
-    pushActivity(`${m} — <b>${t.id}</b>`);
+  const rowDetail = t => {
+    const st = TV_STATUS[t.status];
+    toast(`${t.id} · ${t.plate}`, t.status === 'rejected' ? 'No camera record — supplier claim rejected' : t.status === 'suspended' ? 'Timestamps off — sent for dual review' : t.status === 'unclaimed' ? 'Camera saw it — awaiting supplier note' : 'Camera-verified · hash ' + t.hash, st.s);
   };
   const resolveAlert = a => {
     setAlerts(list => list.map(x => x.id === a.id ? {
@@ -158,9 +119,8 @@ function ScreenVerify({
   };
   const openAlerts = alerts.filter(a => a.status !== 'resolved');
   const critOpen = openAlerts.filter(a => a.sev === 'crit').length;
-  const gap = claimed - verified;
 
-  /* ---------- panels ---------- */
+  /* ---------- KPI strip ---------- */
   const Kpis = /*#__PURE__*/React.createElement(Panel, {
     title: "Truck Trip Verification",
     sub: "cameras count the trips \xB7 live",
@@ -182,7 +142,7 @@ function ScreenVerify({
     value: /*#__PURE__*/React.createElement(Num, {
       value: V.registered
     }),
-    size: 28,
+    size: 26,
     delta: V.camsOnline + '/' + V.camsTotal + ' cameras online',
     deltaDir: "flat"
   }), /*#__PURE__*/React.createElement("div", {
@@ -201,7 +161,7 @@ function ScreenVerify({
       value: verified,
       live: live
     })),
-    size: 28,
+    size: 26,
     delta: "\u25CF complete trips"
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -219,8 +179,8 @@ function ScreenVerify({
       value: claimed,
       live: live
     })),
-    size: 28,
-    delta: '▼ ' + V.rejected + ' rejected · ' + V.unclaimed + ' unclaimed',
+    size: 26,
+    delta: '▼ ' + gap + ' not payable',
     deltaDir: "down"
   }), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -229,34 +189,257 @@ function ScreenVerify({
       margin: '0 16px'
     }
   }), /*#__PURE__*/React.createElement(Kpi, {
-    label: "Hash chain",
+    label: "Tamper-proof",
     value: /*#__PURE__*/React.createElement("span", {
       style: {
         color: 'var(--green)'
       }
-    }, "Intact"),
+    }, "Hash \u2713"),
     size: 22,
-    delta: "tamper-proof \xB7 no edits",
+    delta: "no edit \xB7 no override",
     deltaDir: "flat"
+  })));
+
+  /* ---------- the verified TIMESHEET ---------- */
+  const cols = '0.95fr 1fr 1.25fr 1.25fr 1.05fr';
+  const Timesheet = /*#__PURE__*/React.createElement(Panel, {
+    title: "Verified Trip Timesheet",
+    sub: "June 2026 \xB7 camera-counted",
+    flush: true,
+    right: /*#__PURE__*/React.createElement(Tag, {
+      s: "ok"
+    }, "\u2713 Tamper-proof"),
+    className: "col",
+    style: {
+      minHeight: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 16,
+      alignItems: 'center',
+      padding: '14px 16px',
+      borderBottom: '1px solid var(--line)',
+      background: 'linear-gradient(180deg, rgba(31,224,196,.10), rgba(31,224,196,.03))',
+      boxShadow: 'inset 0 0 0 1px var(--accent-line)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "qr",
+    style: {
+      width: 72,
+      height: 72,
+      flex: 'none'
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "col",
+    style: {
+      flex: 1,
+      gap: 5,
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      gap: 8,
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "label",
+    style: {
+      color: 'var(--accent-2)',
+      fontSize: 9.5
+    }
+  }, "Verified by camera \xB7 hash-chained \xB7 QR-scannable"), /*#__PURE__*/React.createElement(Tag, {
+    s: "ok"
+  }, "\u2713 chain intact")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12.5,
+      color: 'var(--ink)',
+      lineHeight: 1.4
+    }
+  }, "This sheet ", /*#__PURE__*/React.createElement("b", null, "replaces the paper timesheet, stamp & signature"), ". The number here is the number on the invoice."), /*#__PURE__*/React.createElement("div", {
+    className: "row",
+    style: {
+      gap: 18,
+      marginTop: 1,
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "mono",
+    style: {
+      fontSize: 11,
+      color: 'var(--ink2)'
+    }
+  }, "Trips this period ", /*#__PURE__*/React.createElement("b", {
+    style: {
+      color: 'var(--green)'
+    }
+  }, /*#__PURE__*/React.createElement(Num, {
+    value: verified,
+    live: live
+  }))), /*#__PURE__*/React.createElement("span", {
+    className: "hashline hash-ok",
+    style: {
+      fontSize: 10
+    }
+  }, "sheet hash 0x7f3a91c\u2026e5a7"))), /*#__PURE__*/React.createElement("div", {
+    className: "col",
+    style: {
+      gap: 6,
+      flex: 'none'
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    kind: "primary",
+    sm: true,
+    onClick: () => toast('Live count opened', `QR resolves to ${verified} camera-verified trips`, 'accent')
+  }, "Open live count"), /*#__PURE__*/React.createElement(Btn, {
+    kind: "ghost",
+    sm: true,
+    onClick: () => {
+      toast('Timesheet exported', 'PDF with embedded QR · sent to billing', 'good');
+      pushActivity('Exported verified timesheet — <b>PDF + QR</b>');
+    }
+  }, "Export sheet"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: cols,
+      gap: 10,
+      padding: '9px 16px',
+      borderBottom: '1px solid var(--line)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "label",
+    style: {
+      fontSize: 8.5
+    }
+  }, "Truck"), /*#__PURE__*/React.createElement("span", {
+    className: "label",
+    style: {
+      fontSize: 8.5
+    }
+  }, "Route"), /*#__PURE__*/React.createElement("span", {
+    className: "label",
+    style: {
+      fontSize: 8.5
+    }
+  }, "Factory \xB7 empty \u2192 loaded"), /*#__PURE__*/React.createElement("span", {
+    className: "label",
+    style: {
+      fontSize: 8.5
+    }
+  }, "Site \xB7 loaded \u2192 empty"), /*#__PURE__*/React.createElement("span", {
+    className: "label",
+    style: {
+      fontSize: 8.5
+    }
+  }, "Verified")), /*#__PURE__*/React.createElement("div", {
+    className: "scrolly",
+    style: {
+      flex: 1
+    }
+  }, trips.map(t => {
+    const st = TV_STATUS[t.status];
+    const rej = t.status === 'rejected';
+    return /*#__PURE__*/React.createElement("div", {
+      key: t.id,
+      className: "lrow",
+      style: {
+        display: 'grid',
+        gridTemplateColumns: cols,
+        gap: 10,
+        alignItems: 'center'
+      },
+      onClick: () => rowDetail(t)
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "col",
+      style: {
+        gap: 2,
+        minWidth: 0
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "mono",
+      style: {
+        fontSize: 12,
+        fontWeight: 600
+      }
+    }, t.plate), /*#__PURE__*/React.createElement("span", {
+      className: "label",
+      style: {
+        fontSize: 8
+      }
+    }, t.sup)), /*#__PURE__*/React.createElement("span", {
+      className: "truncate label",
+      style: {
+        fontSize: 9
+      }
+    }, t.from, " \u2192 ", t.to), rej ? /*#__PURE__*/React.createElement("span", {
+      className: "mono",
+      style: {
+        fontSize: 10.5,
+        color: 'var(--red)'
+      }
+    }, "no camera record") : /*#__PURE__*/React.createElement("span", {
+      className: "mono tnum",
+      style: {
+        fontSize: 11.5,
+        color: 'var(--ink2)'
+      }
+    }, t.fIn, " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: 'var(--ink4)'
+      }
+    }, "\u2192"), " ", t.fOut), rej ? /*#__PURE__*/React.createElement("span", {
+      className: "mono",
+      style: {
+        fontSize: 10.5,
+        color: 'var(--red)'
+      }
+    }, "\u2014") : /*#__PURE__*/React.createElement("span", {
+      className: "mono tnum",
+      style: {
+        fontSize: 11.5,
+        color: t.status === 'suspended' ? 'var(--amber)' : 'var(--ink2)'
+      }
+    }, t.sIn, " ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: 'var(--ink4)'
+      }
+    }, "\u2192"), " ", t.sOut), /*#__PURE__*/React.createElement("div", {
+      className: "col",
+      style: {
+        gap: 3,
+        alignItems: 'flex-start'
+      }
+    }, /*#__PURE__*/React.createElement(Tag, {
+      s: st.s
+    }, st.label), /*#__PURE__*/React.createElement("span", {
+      className: "hashline hash-ok",
+      style: {
+        fontSize: 8.5,
+        color: rej ? 'var(--ink4)' : 'var(--green)'
+      }
+    }, "#", t.hash)));
   })), /*#__PURE__*/React.createElement("div", {
     className: "between",
     style: {
-      marginTop: 12,
-      paddingTop: 11,
+      padding: '10px 16px',
       borderTop: '1px solid var(--line)'
     }
   }, /*#__PURE__*/React.createElement("span", {
     className: "label",
     style: {
-      color: gap > 0 ? 'var(--red)' : 'var(--green)'
+      fontSize: 8.5,
+      color: 'var(--green)'
     }
-  }, gap > 0 ? `⚠ Supplier claimed ${claimed} · camera verified ${verified} — ${gap} not payable` : 'Claimed = verified · no dispute'), /*#__PURE__*/React.createElement("span", {
+  }, "\u25CF ", verified, " camera-verified \xB7 = the invoice"), /*#__PURE__*/React.createElement("span", {
     className: "label",
     style: {
       fontSize: 8.5,
       color: 'var(--ink4)'
     }
-  }, "camera data = the invoice")));
+  }, "no signatures \xB7 no stamps \xB7 no edits")));
+
+  /* ---------- registry (right top) ---------- */
   const Registry = /*#__PURE__*/React.createElement(Panel, {
     title: "Trucks We Know About",
     sub: trucks.length + ' shown · ' + V.registered + ' registered',
@@ -282,277 +465,16 @@ function ScreenVerify({
       onClick: () => toast(t.plate, `${t.supplier} · ${t.trips} trips today${t.note ? ' · ' + t.note : ''}`, st === 'crit' ? 'crit' : st === 'warn' ? 'warn' : 'good')
     }, /*#__PURE__*/React.createElement("span", {
       style: {
-        color: stateColor[st === 'idle' ? 'idle' : st]
+        color: stateColor[st === 'idle' ? 'idle' : st],
+        flex: 'none'
       }
     }, /*#__PURE__*/React.createElement(EqIcon, {
       type: "truck",
-      size: 16
+      size: 15
     })), /*#__PURE__*/React.createElement("div", {
       className: "col",
       style: {
         flex: 1,
-        gap: 2,
-        minWidth: 0
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "between"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "mono",
-      style: {
-        fontSize: 12,
-        fontWeight: 600
-      }
-    }, t.plate), /*#__PURE__*/React.createElement("span", {
-      className: "mono tnum",
-      style: {
-        fontSize: 11,
-        color: 'var(--ink3)'
-      }
-    }, t.trips, " trips")), /*#__PURE__*/React.createElement("span", {
-      className: "label truncate",
-      style: {
-        fontSize: 8.5,
-        color: t.note ? stateColor[st] : 'var(--ink4)'
-      }
-    }, t.supplier, t.note ? ' · ' + t.note : '')), t.status === 'unregistered' ? /*#__PURE__*/React.createElement(Btn, {
-      sm: true,
-      kind: "primary",
-      onClick: e => {
-        e.stopPropagation();
-        registerTruck(t.plate);
-      }
-    }, "Register") : /*#__PURE__*/React.createElement(Dot, {
-      s: st,
-      live: live && (st === 'warn' || st === 'crit')
-    }));
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "between",
-    style: {
-      padding: '9px 14px',
-      borderTop: '1px solid var(--line)'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "cam-id"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: cx('dot ok', live && 'live')
-  }), V.camsOnline, " gate cameras"), /*#__PURE__*/React.createElement("span", {
-    className: "label",
-    style: {
-      fontSize: 8.5,
-      color: 'var(--ink4)'
-    }
-  }, "unregistered = blocked")));
-  const Featured = /*#__PURE__*/React.createElement(Panel, {
-    title: 'Complete Trip · ' + F.trip,
-    sub: F.plate + ' · ' + F.route,
-    glow: true,
-    right: /*#__PURE__*/React.createElement(Tag, {
-      s: "ok"
-    }, "\u2713 Verified \xB7 payable")
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "chain",
-    style: {
-      marginTop: 2,
-      marginBottom: 8
-    }
-  }, F.events.map((e, i) => /*#__PURE__*/React.createElement("div", {
-    key: i,
-    className: "node done"
-  }, i > 0 && /*#__PURE__*/React.createElement("span", {
-    className: "link"
-  }), /*#__PURE__*/React.createElement("span", {
-    className: "knob",
-    style: {
-      width: 28,
-      height: 28,
-      fontSize: 11
-    }
-  }, "\u2713"), /*#__PURE__*/React.createElement("span", {
-    className: "clabel"
-  }, e.gate), /*#__PURE__*/React.createElement("span", {
-    className: "tag",
-    style: {
-      height: 17,
-      padding: '0 6px',
-      marginTop: 1,
-      color: e.load === 'LOADED' ? 'var(--accent)' : 'var(--ink3)',
-      borderColor: e.load === 'LOADED' ? 'var(--accent-line)' : 'var(--line2)',
-      background: e.load === 'LOADED' ? 'var(--accent-dim)' : 'transparent'
-    }
-  }, e.load), /*#__PURE__*/React.createElement("span", {
-    className: "mono",
-    style: {
-      fontSize: 10,
-      color: 'var(--ink2)'
-    }
-  }, e.t), /*#__PURE__*/React.createElement("span", {
-    className: "hashline hash-ok",
-    style: {
-      fontSize: 8
-    }
-  }, "#", e.hash)))), /*#__PURE__*/React.createElement("div", {
-    className: "row",
-    style: {
-      gap: 12,
-      marginTop: 10,
-      paddingTop: 12,
-      borderTop: '1px solid var(--line)',
-      alignItems: 'stretch'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "col",
-    style: {
-      flex: 1,
-      gap: 8,
-      padding: 12,
-      border: '1px solid var(--line)',
-      borderRadius: 8,
-      background: 'var(--panel2)'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "label"
-  }, "Three-way handshake"), /*#__PURE__*/React.createElement("div", {
-    className: "row",
-    style: {
-      gap: 6,
-      flexWrap: 'wrap'
-    }
-  }, /*#__PURE__*/React.createElement(HS, {
-    ok: F.handshake.camera,
-    label: "Camera"
-  }), /*#__PURE__*/React.createElement(HS, {
-    ok: F.handshake.note,
-    label: "Note"
-  }), /*#__PURE__*/React.createElement(HS, {
-    ok: F.handshake.times,
-    label: "Timestamps"
-  })), /*#__PURE__*/React.createElement("span", {
-    className: "label",
-    style: {
-      fontSize: 8.5,
-      color: 'var(--ink4)',
-      lineHeight: 1.4
-    }
-  }, "All three align \u2192 trip is payable & added to the invoice automatically."), /*#__PURE__*/React.createElement("div", {
-    className: "row",
-    style: {
-      gap: 6,
-      marginTop: 2
-    }
-  }, /*#__PURE__*/React.createElement(Btn, {
-    sm: true,
-    kind: "good",
-    onClick: () => {
-      toast('Agreed & invoiced', `${F.trip} added to monthly invoice`, 'good');
-      pushActivity(`Agreed trip <b>${F.trip}</b> → invoice`);
-    }
-  }, "Approve & invoice"), /*#__PURE__*/React.createElement(Btn, {
-    sm: true,
-    kind: "warn",
-    onClick: () => {
-      toast('Trip disputed', `${F.trip} sent for review`, 'warn');
-      pushActivity(`Disputed trip <b>${F.trip}</b>`);
-    }
-  }, "Dispute"))), /*#__PURE__*/React.createElement("div", {
-    className: "col",
-    style: {
-      gap: 8,
-      padding: 12,
-      border: '1px solid var(--line)',
-      borderRadius: 8,
-      background: 'var(--panel2)',
-      width: 188,
-      alignItems: 'center'
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "label",
-    style: {
-      alignSelf: 'flex-start'
-    }
-  }, "QR-verified invoice"), /*#__PURE__*/React.createElement("div", {
-    className: "row",
-    style: {
-      gap: 10,
-      alignItems: 'center'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "qr"
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "col",
-    style: {
-      gap: 4
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "mono tnum",
-    style: {
-      fontSize: 20,
-      color: 'var(--green)',
-      lineHeight: 1
-    }
-  }, verified), /*#__PURE__*/React.createElement("span", {
-    className: "label",
-    style: {
-      fontSize: 8
-    }
-  }, "on screen = on invoice"), /*#__PURE__*/React.createElement(Btn, {
-    sm: true,
-    kind: "ghost",
-    onClick: () => toast('Live count opened', `Scan resolves to ${verified} verified trips`, 'accent')
-  }, "Open live count"))), /*#__PURE__*/React.createElement("span", {
-    className: "label",
-    style: {
-      fontSize: 8,
-      color: 'var(--ink4)',
-      alignSelf: 'flex-start'
-    }
-  }, "no QR match \xB7 no valid invoice"))));
-  const Ledger = /*#__PURE__*/React.createElement(Panel, {
-    title: "Trip Ledger",
-    sub: trips.length + ' today',
-    flush: true,
-    className: "col",
-    style: {
-      minHeight: 0
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1.2fr 1.1fr 1fr',
-      padding: '9px 14px',
-      borderBottom: '1px solid var(--line)'
-    }
-  }, ['Trip · Plate', 'Route', 'Handshake', 'Result'].map(h => /*#__PURE__*/React.createElement("span", {
-    key: h,
-    className: "label",
-    style: {
-      fontSize: 8.5
-    }
-  }, h))), /*#__PURE__*/React.createElement("div", {
-    className: "scrolly",
-    style: {
-      flex: 1
-    }
-  }, trips.map(t => {
-    const [ts, tl] = TRIP_TAG[t.status] || ['ghost', t.status];
-    const act = {
-      verified: 'View',
-      suspended: 'Dual review',
-      rejected: 'Investigate',
-      unclaimed: 'Request note'
-    }[t.status];
-    return /*#__PURE__*/React.createElement("div", {
-      key: t.id,
-      className: "lrow",
-      style: {
-        display: 'grid',
-        gridTemplateColumns: '1fr 1.2fr 1.1fr 1fr',
-        alignItems: 'center',
-        gap: 8
-      },
-      onClick: () => tripAct(t)
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "col",
-      style: {
         gap: 2,
         minWidth: 0
       }
@@ -562,139 +484,45 @@ function ScreenVerify({
         fontSize: 11.5,
         fontWeight: 600
       }
-    }, t.id), /*#__PURE__*/React.createElement("span", {
-      className: "mono label",
+    }, t.plate), /*#__PURE__*/React.createElement("span", {
+      className: "label truncate",
       style: {
-        fontSize: 8
+        fontSize: 8,
+        color: t.note ? stateColor[st] : 'var(--ink4)'
       }
-    }, t.plate)), /*#__PURE__*/React.createElement("span", {
-      className: "truncate label",
-      style: {
-        fontSize: 9
-      }
-    }, t.from, " \u2192 ", t.to), /*#__PURE__*/React.createElement("div", {
-      className: "row",
-      style: {
-        gap: 4
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      title: "Camera",
-      style: {
-        color: t.cam ? 'var(--green)' : 'var(--red)',
-        fontSize: 11,
-        fontWeight: 700
-      }
-    }, t.cam ? '✓' : '✗', "C"), /*#__PURE__*/React.createElement("span", {
-      title: "Note",
-      style: {
-        color: t.note ? 'var(--green)' : 'var(--red)',
-        fontSize: 11,
-        fontWeight: 700
-      }
-    }, t.note ? '✓' : '✗', "N"), /*#__PURE__*/React.createElement("span", {
-      title: "Timestamps",
-      style: {
-        color: t.times ? 'var(--green)' : 'var(--red)',
-        fontSize: 11,
-        fontWeight: 700
-      }
-    }, t.times ? '✓' : '✗', "T")), /*#__PURE__*/React.createElement("div", {
-      className: "row",
-      style: {
-        gap: 6,
-        alignItems: 'center',
-        justifyContent: 'space-between'
-      }
-    }, /*#__PURE__*/React.createElement(Tag, {
-      s: ts
-    }, tl), /*#__PURE__*/React.createElement(Btn, {
+    }, t.supplier, t.note ? ' · ' + t.note : '')), t.status === 'unregistered' ? /*#__PURE__*/React.createElement(Btn, {
       sm: true,
-      kind: "ghost",
+      kind: "primary",
       onClick: e => {
         e.stopPropagation();
-        tripAct(t);
+        registerTruck(t.plate);
       }
-    }, act)));
-  })));
-  const Chain = /*#__PURE__*/React.createElement(Panel, {
-    title: "Immutable Hash Chain",
-    sub: "append-only \xB7 tamper-proof",
-    flush: true,
-    className: "col",
-    style: {
-      minHeight: 0
-    },
-    right: /*#__PURE__*/React.createElement("span", {
-      className: "chip"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: cx('dot ok', live && 'live')
-    }), live ? 'signing' : 'paused')
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "scrolly",
-    style: {
-      flex: 1,
-      padding: 12,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 0
-    }
-  }, chain.map(l => /*#__PURE__*/React.createElement("div", {
-    key: l._k,
-    className: cx('col', l.isNew && 'slidein'),
-    style: {
-      gap: 4,
-      padding: '9px 2px',
-      borderBottom: '1px solid var(--line)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "between"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "mono",
-    style: {
-      fontSize: 11,
-      fontWeight: 600,
-      color: l.ev.includes('REJECT') ? 'var(--red)' : l.ev.includes('VERIFIED') ? 'var(--green)' : 'var(--ink)'
-    }
-  }, l.ev), /*#__PURE__*/React.createElement("span", {
-    className: "mono",
-    style: {
-      fontSize: 10,
-      color: 'var(--ink3)'
-    }
-  }, l.t)), /*#__PURE__*/React.createElement("div", {
-    className: "between"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "mono label",
-    style: {
-      fontSize: 8.5
-    }
-  }, l.plate, l.load && l.load !== '—' ? ' · ' + l.load : '')), /*#__PURE__*/React.createElement("span", {
-    className: "hashline hash-ok",
-    style: {
-      fontSize: 9
-    }
-  }, l.hash, /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: 'var(--ink4)'
-    }
-  }, " \u2190 ", l.prev))))), /*#__PURE__*/React.createElement("div", {
+    }, "Register") : /*#__PURE__*/React.createElement("span", {
+      className: "mono tnum",
+      style: {
+        fontSize: 11,
+        color: 'var(--ink3)'
+      }
+    }, t.trips));
+  })), /*#__PURE__*/React.createElement("div", {
     className: "between",
     style: {
-      padding: '8px 12px',
+      padding: '8px 14px',
       borderTop: '1px solid var(--line)'
     }
   }, /*#__PURE__*/React.createElement("span", {
-    className: "mono hash-ok",
-    style: {
-      fontSize: 9.5
-    }
-  }, "\u25CF chain intact"), /*#__PURE__*/React.createElement("span", {
+    className: "cam-id"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: cx('dot ok', live && 'live')
+  }), V.camsOnline, " gate cameras"), /*#__PURE__*/React.createElement("span", {
     className: "label",
     style: {
       fontSize: 8,
       color: 'var(--ink4)'
     }
-  }, "no edit \xB7 no override")));
+  }, "unregistered = blocked")));
+
+  /* ---------- alerts (right bottom) ---------- */
   const Alerts = /*#__PURE__*/React.createElement(Panel, {
     title: "Verification Alerts",
     sub: openAlerts.length + ' open',
@@ -736,7 +564,10 @@ function ScreenVerify({
     const done = a.status === 'resolved';
     return /*#__PURE__*/React.createElement("div", {
       key: a.id,
-      className: cx('alert', a.sev, a.status === 'escalated' && 'escalated', a.isNew && 'slidein', a.removing && 'removing')
+      className: cx('alert', a.sev, a.status === 'escalated' && 'escalated', a.isNew && 'slidein', a.removing && 'removing'),
+      style: {
+        flex: 'none'
+      }
     }, /*#__PURE__*/React.createElement("div", {
       className: "ico"
     }, /*#__PURE__*/React.createElement(Code, {
@@ -791,10 +622,10 @@ function ScreenVerify({
     className: "screen pad fade-in",
     style: {
       display: 'grid',
-      gridTemplateColumns: '320px minmax(0,1fr) 350px',
+      gridTemplateColumns: 'minmax(0,1fr) 380px',
       gridTemplateRows: 'auto minmax(0,1fr)',
       gap: 14,
-      gridTemplateAreas: '"kpis kpis kpis" "registry center right"'
+      gridTemplateAreas: '"kpis kpis" "sheet side"'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -802,26 +633,18 @@ function ScreenVerify({
     }
   }, Kpis), /*#__PURE__*/React.createElement("div", {
     style: {
-      gridArea: 'registry',
+      gridArea: 'sheet',
       minHeight: 0,
       display: 'grid'
     }
-  }, Registry), /*#__PURE__*/React.createElement("div", {
+  }, Timesheet), /*#__PURE__*/React.createElement("div", {
     style: {
-      gridArea: 'center',
+      gridArea: 'side',
       minHeight: 0,
       display: 'grid',
-      gridTemplateRows: 'auto minmax(0,1fr)',
+      gridTemplateRows: 'minmax(0,0.95fr) minmax(0,1.05fr)',
       gap: 14
     }
-  }, Featured, Ledger), /*#__PURE__*/React.createElement("div", {
-    style: {
-      gridArea: 'right',
-      minHeight: 0,
-      display: 'grid',
-      gridTemplateRows: 'minmax(0,1.05fr) minmax(0,0.95fr)',
-      gap: 14
-    }
-  }, Chain, Alerts));
+  }, Registry, Alerts));
 }
 window.ScreenVerify = ScreenVerify;
